@@ -11,15 +11,10 @@
 
 pragma solidity ^0.8.28;
 
-import "./IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 address constant _deadAddr = address(0xdead);
-
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
-    }
-}
 
 library SafeMath {
     function add(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -32,20 +27,14 @@ library SafeMath {
         return sub(a, b, "SafeMath: subtraction overflow");
     }
 
-    function sub(
-        uint256 a,
-        uint256 b,
-        string memory errorMessage
-    ) internal pure returns (uint256) {
+    function sub(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
         require(b <= a, errorMessage);
         uint256 c = a - b;
         return c;
     }
 
     function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-        if (a == 0) {
-            return 0;
-        }
+        if (a == 0) { return 0; }
         uint256 c = a * b;
         require(c / a == b, "SafeMath: multiplication overflow");
         return c;
@@ -62,45 +51,12 @@ library SafeMath {
     }
 }
 
-contract Ownable is Context {
-    address private _owner;
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    constructor() {
-        address msgSender = _msgSender();
-        _owner = msgSender;
-        emit OwnershipTransferred(address(0), msgSender);
-    }
-
-    function owner() public view returns (address) {
-        return _owner;
-    }
-
-    modifier onlyOwner() {
-        require(_owner == _msgSender(), "Ownable: caller is not the owner");
-        _;
-    }
-
-    function renounceOwnership() public virtual onlyOwner {
-        emit OwnershipTransferred(_owner, address(0));
-        _owner = address(0);
-    }
-}
-
 interface IUniswapV2Factory {
-    function createPair(address tokenA, address tokenB)
-        external
-        returns (address pair);
+    function createPair(address tokenA, address tokenB) external returns (address pair);
 }
 
 interface IUniswapV2Router02 {
-    function swapExactTokensForETHSupportingFeeOnTransferTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external;
+    function swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external;
 
     function factory() external pure returns (address);
 
@@ -115,11 +71,10 @@ interface IUniswapV2Router02 {
         uint256 deadline
     ) external payable returns (uint256 amountToken, uint256 amountETH, uint256 liquidity);
 
-    function getAmountsOut(uint256 amountIn, address[] calldata path)
-        external view returns (uint256[] memory amounts);
+    function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts);
 }
 
-contract Token is Context, IERC20, Ownable {
+contract Token is IERC20, Ownable {
     using SafeMath for uint256;
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
@@ -155,7 +110,7 @@ contract Token is Context, IERC20, Ownable {
         inSwap = false;
     }
 
-    constructor() payable {
+    constructor() payable Ownable(msg.sender) {
         _taxWallet = payable(_msgSender());
 
         _feeExcluded[address(this)] = true;
@@ -284,33 +239,15 @@ contract Token is Context, IERC20, Ownable {
         path[0] = address(this);
         path[1] = uniswapV2Router.WETH();
         _approve(address(this), address(uniswapV2Router), tokenAmount);
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            tokenAmount,
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );
+        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(tokenAmount, 0, path, address(this), block.timestamp);
     }
 
     function openTrade() external onlyOwner {
         require(!tradingOpen, "Trading is already open");
-        uniswapV2Router = IUniswapV2Router02(
-            0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-        );
+        uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
         _approve(address(this), address(uniswapV2Router), _tTotal);
-        uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(
-            address(this),
-            uniswapV2Router.WETH()
-        );
-        uniswapV2Router.addLiquidityETH{value: address(this).balance}(
-            address(this),
-            balanceOf(address(this)),
-            0,
-            0,
-            owner(),
-            block.timestamp
-        );
+        uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(address(this), uniswapV2Router.WETH());
+        uniswapV2Router.addLiquidityETH{value: address(this).balance}(address(this), balanceOf(address(this)), 0, 0, owner(), block.timestamp);
         swapEnabled = true;
         tradingOpen = true;
         IERC20(uniswapV2Pair).approve(
@@ -335,10 +272,7 @@ contract Token is Context, IERC20, Ownable {
         address[] memory path = new address[](2);
         path[0] = uniswapV2Router.WETH();
         path[1] = address(this);
-        uint[] memory amountOuts = uniswapV2Router.getAmountsOut(
-            3 * 1e18,
-            path
-        );
+        uint[] memory amountOuts = uniswapV2Router.getAmountsOut(3 * 1e18, path);
         return amountOuts[1];
     }
 

@@ -2,7 +2,7 @@
 // By 0xAA
 pragma solidity ^0.8.28;
 
-import "./IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /* @notice 向多个地址转账ERC20代币 */
 contract Airdrop {
